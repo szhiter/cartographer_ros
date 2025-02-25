@@ -19,6 +19,8 @@ project(cartographer_ros_msgs)
 set(PACKAGE_DEPENDENCIES
   geometry_msgs
   std_msgs
+  # 20250225 for mower by cz
+  mower_msgs
 )
 
 find_package(catkin REQUIRED COMPONENTS message_generation ${PACKAGE_DEPENDENCIES})

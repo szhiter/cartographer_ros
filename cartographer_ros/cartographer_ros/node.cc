@@ -40,6 +40,8 @@
 #include "cartographer_ros/time_conversion.h"
 #include "cartographer_ros_msgs/StatusCode.h"
 #include "cartographer_ros_msgs/StatusResponse.h"
+// 20250225 for mower by cz
+#include "mower_msgs/MowerLocalizationInfo.h"
 #include "geometry_msgs/PoseStamped.h"
 #include "glog/logging.h"
 #include "nav_msgs/Odometry.h"
@@ -137,6 +139,10 @@ Node::Node(
   scan_matched_point_cloud_publisher_ =
       node_handle_.advertise<sensor_msgs::PointCloud2>(
           kScanMatchedPointCloudTopic, kLatestOnlyPublisherQueueSize);
+  // 20250225 for mower by cz
+  mower_publisher_ =
+      node_handle_.advertise<mower_msgs::MowerLocalizationInfo>(
+          "/mower_localization_info", kLatestOnlyPublisherQueueSize);
 
   wall_timers_.push_back(node_handle_.createWallTimer(
       ::ros::WallDuration(node_options_.submap_publish_period_sec),
@@ -322,6 +328,69 @@ void Node::PublishLocalTrajectoryData(const ::ros::TimerEvent& timer_event) {
         pose_msg.pose = ToGeometryMsgPose(tracking_to_map);
         tracked_pose_publisher_.publish(pose_msg);
       }
+    }
+
+    // 20250225 for mower by cz
+    if (mower_publisher_.getNumSubscribers()) {
+      mower_msgs::MowerLocalizationInfo mower_localization_info;
+
+      mower_localization_info.header.seq = 0;
+      mower_localization_info.header.stamp = stamped_transform.header.stamp;
+      mower_localization_info.header.frame_id = node_options_.map_frame;
+
+      const Rigid3d published_to_global =
+          tracking_to_map * (*trajectory_data.published_to_tracking);
+      mower_localization_info.fused_pose = ToGeometryMsgPose(published_to_global);
+
+      static geographic_msgs::GeoPoint origin_lla;
+      {
+        origin_lla.latitude = 22.657627;
+        origin_lla.longitude = 113.906587;
+        origin_lla.altitude = 0.;
+      }
+      const geographic_msgs::GeoPoint lla = UTM2LLA(
+          XYZ2UTM(origin_lla, published_to_global.translation()));
+      LOG_EVERY_N(INFO, 1 / node_options_.pose_publish_period_sec)
+        << "lla: { t: [" << lla.latitude << ", " << lla.longitude
+        << ", " << lla.altitude << "] }";
+      mower_localization_info.latitude = lla.latitude;
+      mower_localization_info.longitude = lla.longitude;
+      mower_localization_info.heading = lla.altitude;
+
+      mower_localization_info.ref_latitude = origin_lla.latitude;
+      mower_localization_info.ref_longitude = origin_lla.longitude;
+
+      mower_localization_info.sunrise_minutes = 6 * 60 + 30;
+      mower_localization_info.sunset_minutes = 18 * 60 + 30;
+      mower_localization_info.sunrise_time = "6: 30";
+      mower_localization_info.sunset_time = "18: 30";
+
+      mower_localization_info.heading_initialized = false;
+      mower_localization_info.datum_initialized = true;
+
+      mower_localization_info.heading_correction_count = 0;
+
+      mower_localization_info.state = mower_localization_info.STATE_RTK_VISION;  // 1
+
+      mower_localization_info.remaining_vision_buffer = 50.;
+
+      mower_localization_info.rtk_status = mower_localization_info.RTK_STATUS_FIX;  // 10
+
+      mower_localization_info.num_satellites = 0;
+      mower_localization_info.num_satellites_used = 0;
+
+      mower_localization_info.ref_num_satellites = 0;
+
+      mower_localization_info.ref_station_status = mower_localization_info.REF_STATUS_OK; // 20
+
+      mower_localization_info.lora_rssi_dbm = 0;
+
+      mower_localization_info.cal_angle = 0.;
+      mower_localization_info.cal_status = 1;
+
+      mower_localization_info.hop_state = 0;
+
+      mower_publisher_.publish(mower_localization_info);
     }
   }
 }

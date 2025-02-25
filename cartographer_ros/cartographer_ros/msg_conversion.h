@@ -31,6 +31,9 @@
 #include "sensor_msgs/LaserScan.h"
 #include "sensor_msgs/MultiEchoLaserScan.h"
 #include "sensor_msgs/PointCloud2.h"
+// 20250225 for mower by cz
+#include "geodesy/utm.h"
+#include "geographic_msgs/GeoPoint.h"
 
 namespace cartographer_ros {
 
@@ -76,6 +79,14 @@ Eigen::Quaterniond ToEigen(const geometry_msgs::Quaternion& quaternion);
 // Converts from WGS84 (latitude, longitude, altitude) to ECEF.
 Eigen::Vector3d LatLongAltToEcef(double latitude, double longitude,
                                  double altitude);
+
+// 20250225 for mower by cz
+geographic_msgs::GeoPoint UTM2LLA(const geodesy::UTMPoint& utm);
+
+geodesy::UTMPoint LLA2UTM(const geographic_msgs::GeoPoint& lla);
+
+geodesy::UTMPoint XYZ2UTM(const geographic_msgs::GeoPoint& lla_origin,
+                          const Eigen::Vector3d& xyz);
 
 // Returns a transform that takes ECEF coordinates from nearby points to a local
 // frame that has z pointing upwards.

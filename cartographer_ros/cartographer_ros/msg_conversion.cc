@@ -359,6 +359,29 @@ Eigen::Vector3d LatLongAltToEcef(const double latitude, const double longitude,
   return Eigen::Vector3d(x, y, z);
 }
 
+// 20250225 for mower by cz
+geographic_msgs::GeoPoint UTM2LLA(const geodesy::UTMPoint& utm) {
+  return geodesy::toMsg(utm);
+}
+
+geodesy::UTMPoint LLA2UTM(const geographic_msgs::GeoPoint& lla) {
+  geodesy::UTMPoint utm;
+  geodesy::fromMsg(lla, utm);
+  return utm;
+}
+
+geodesy::UTMPoint XYZ2UTM(const geographic_msgs::GeoPoint& lla_origin,
+                          const Eigen::Vector3d& xyz) {
+  const geodesy::UTMPoint utm_origin = LLA2UTM(lla_origin);
+  geodesy::UTMPoint utm;
+  utm.easting = xyz.x() + utm_origin.easting;
+  utm.northing = xyz.y() + utm_origin.northing;
+  utm.altitude = xyz.z() + utm_origin.altitude;
+  utm.zone = utm_origin.zone;
+  utm.band = utm_origin.band;
+  return utm;
+}
+
 cartographer::transform::Rigid3d ComputeLocalFrameFromLatLong(
     const double latitude, const double longitude) {
   const Eigen::Vector3d translation = LatLongAltToEcef(latitude, longitude, 0.);
