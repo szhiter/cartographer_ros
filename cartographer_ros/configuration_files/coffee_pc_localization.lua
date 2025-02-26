@@ -12,7 +12,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-include "mower_2d.lua"
+include "coffee_pc.lua"
 
 TRAJECTORY_BUILDER.pure_localization_trimmer = {
   max_submaps_to_keep = 3,

@@ -15,10 +15,21 @@
 -->
 
 <launch>
-  <param name="/use_sim_time" value="true" />
+  <arg name="robot_type" default="coffee_pc"/>
+
+  <group if="$(eval arg('robot_type') > '_pc')">
+      <param name="/use_sim_time" value="true" />
+  </group>
+
+  <group if="$(eval arg('robot_type') > '_tm')">
+      <env name="ROS_MASTER_URI" value="http://192.168.101.9:11311" />
+      <env name="ROS_IP" value="192.168.101.9" />
+
+      <param name="/use_sim_time" value="false" />
+  </group>
 
   <param name="robot_description"
-    textfile="$(find cartographer_ros)/urdf/mower_2d.urdf" />
+    textfile="$(find cartographer_ros)/urdf/$(arg robot_type).urdf" />
 
   <node name="robot_state_publisher" pkg="robot_state_publisher"
     type="robot_state_publisher" />
@@ -26,8 +37,7 @@
   <node name="cartographer_node" pkg="cartographer_ros"
       type="cartographer_node" args="
           -configuration_directory $(find cartographer_ros)/configuration_files
-          -configuration_basename mower_2d_localization.lua
-          -load_state_filename $(arg load_state_filename)"
+          -configuration_basename $(arg robot_type).lua"
       output="screen">
     <remap from="scan" to="scan" />
   </node>
@@ -35,8 +45,10 @@
   <node name="cartographer_occupancy_grid_node" pkg="cartographer_ros"
       type="cartographer_occupancy_grid_node" args="-resolution 0.05" />
 
-  <node name="rviz" pkg="rviz" type="rviz" required="true"
-      args="-d $(find cartographer_ros)/configuration_files/mower_2d.rviz" />
-  <node name="playbag" pkg="rosbag" type="play"
-      args="--clock $(arg bag_filename)" />
+  <group if="$(eval arg('robot_type') > '_pc')">
+      <node name="rviz" pkg="rviz" type="rviz" required="true"
+          args="-d $(find cartographer_ros)/configuration_files/demo_coffee.rviz" />
+      <node name="playbag" pkg="rosbag" type="play"
+          args="--clock $(arg bag_filename) --pause" />
+  </group>
 </launch>
