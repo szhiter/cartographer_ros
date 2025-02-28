@@ -40,7 +40,7 @@
 #include "cartographer_ros/time_conversion.h"
 #include "cartographer_ros_msgs/StatusCode.h"
 #include "cartographer_ros_msgs/StatusResponse.h"
-// 20250225 for mower by cz
+// 20250225 for mower
 #include "mower_msgs/MowerLocalizationInfo.h"
 #include "geometry_msgs/PoseStamped.h"
 #include "glog/logging.h"
@@ -139,7 +139,7 @@ Node::Node(
   scan_matched_point_cloud_publisher_ =
       node_handle_.advertise<sensor_msgs::PointCloud2>(
           kScanMatchedPointCloudTopic, kLatestOnlyPublisherQueueSize);
-  // 20250225 for mower by cz
+  // 20250225 for mower
   mower_publisher_ =
       node_handle_.advertise<mower_msgs::MowerLocalizationInfo>(
           "/mower_localization_info", kLatestOnlyPublisherQueueSize);
@@ -252,6 +252,8 @@ void Node::PublishLocalTrajectoryData(const ::ros::TimerEvent& timer_event) {
             carto::sensor::TransformTimedPointCloud(
                 point_cloud, trajectory_data.local_to_map.cast<float>())));
       }
+      // 20250226 for debug pose extrapolator
+//      LOG(INFO) << "Add pose: " << trajectory_data.local_slam_data->time;
       extrapolator.AddPose(trajectory_data.local_slam_data->time,
                            trajectory_data.local_slam_data->local_pose);
     }
@@ -263,6 +265,9 @@ void Node::PublishLocalTrajectoryData(const ::ros::TimerEvent& timer_event) {
     // information is better.
     const ::cartographer::common::Time now = std::max(
         FromRos(ros::Time::now()), extrapolator.GetLastExtrapolatedTime());
+    // 20250226 for debug pose extrapolator
+//    LOG(INFO) << "ros: " << FromRos(ros::Time::now());
+//    LOG(INFO) << "extrapolator: " << extrapolator.GetLastExtrapolatedTime();
     stamped_transform.header.stamp =
         node_options_.use_pose_extrapolator
             ? ToRos(now)
@@ -276,6 +281,8 @@ void Node::PublishLocalTrajectoryData(const ::ros::TimerEvent& timer_event) {
       continue;
     last_published_tf_stamps_[entry.first] = stamped_transform.header.stamp;
 
+    // 20250226 for debug pose extrapolator
+//    LOG(INFO) << "Get pose: " << now;
     const Rigid3d tracking_to_local_3d =
         node_options_.use_pose_extrapolator
             ? extrapolator.ExtrapolatePose(now)
@@ -330,7 +337,7 @@ void Node::PublishLocalTrajectoryData(const ::ros::TimerEvent& timer_event) {
       }
     }
 
-    // 20250225 for mower by cz
+    // 20250225 for mower
     if (mower_publisher_.getNumSubscribers()) {
       mower_msgs::MowerLocalizationInfo mower_localization_info;
 

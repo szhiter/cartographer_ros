@@ -31,7 +31,7 @@
 #include "sensor_msgs/LaserScan.h"
 #include "sensor_msgs/MultiEchoLaserScan.h"
 #include "sensor_msgs/PointCloud2.h"
-// 20250225 for mower by cz
+// 20250225 for mower
 #include "geodesy/utm.h"
 #include "geographic_msgs/GeoPoint.h"
 
@@ -80,7 +80,7 @@ Eigen::Quaterniond ToEigen(const geometry_msgs::Quaternion& quaternion);
 Eigen::Vector3d LatLongAltToEcef(double latitude, double longitude,
                                  double altitude);
 
-// 20250225 for mower by cz
+// 20250225 for mower
 geographic_msgs::GeoPoint UTM2LLA(const geodesy::UTMPoint& utm);
 
 geodesy::UTMPoint LLA2UTM(const geographic_msgs::GeoPoint& lla);

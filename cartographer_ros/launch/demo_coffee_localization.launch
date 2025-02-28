@@ -15,24 +15,29 @@
 -->
 
 <launch>
-  <arg name="robot_type" default="coffee_pc"/>
+  <arg name="robot_type" default="coffee_pc" />
 
-  <group if="$(eval arg('robot_type') > '_pc')">
+  <arg name="build_pc" value="$(eval arg('robot_type') > '_pc')" />
+
+  <group if="$(arg build_pc)">
       <param name="/use_sim_time" value="true" />
+
+      <param name="robot_description"
+        textfile="$(find cartographer_ros)/urdf/$(arg robot_type).urdf" />
+
+      <node name="robot_state_publisher" pkg="robot_state_publisher"
+        type="robot_state_publisher" />
   </group>
 
-  <group if="$(eval arg('robot_type') > '_tm')">
+  <group unless="$(arg build_pc)">
       <env name="ROS_MASTER_URI" value="http://192.168.101.9:11311" />
       <env name="ROS_IP" value="192.168.101.9" />
 
       <param name="/use_sim_time" value="false" />
+
+      <node pkg="tf" type="static_transform_publisher" name="laser_frame_joint"
+        args="0.314 0 0.2593 1.5708 3.1416 0 /base_link /laser_frame 1000" />
   </group>
-
-  <param name="robot_description"
-    textfile="$(find cartographer_ros)/urdf/$(arg robot_type).urdf" />
-
-  <node name="robot_state_publisher" pkg="robot_state_publisher"
-    type="robot_state_publisher" />
 
   <node name="cartographer_node" pkg="cartographer_ros"
       type="cartographer_node" args="
@@ -46,9 +51,9 @@
   <node name="cartographer_occupancy_grid_node" pkg="cartographer_ros"
       type="cartographer_occupancy_grid_node" args="-resolution 0.05" />
 
-  <group if="$(eval arg('robot_type') > '_pc')">
+  <group if="$(arg build_pc)">
       <node name="rviz" pkg="rviz" type="rviz" required="true"
-          args="-d $(find cartographer_ros)/configuration_files/demo_coffee.rviz" />
+          args="-d $(find cartographer_ros)/configuration_files/$(arg robot_type).rviz" />
       <node name="playbag" pkg="rosbag" type="play"
           args="--clock $(arg bag_filename) --pause" />
   </group>

@@ -55,7 +55,7 @@ TRAJECTORY_BUILDER_2D.max_z = 2.
 TRAJECTORY_BUILDER_2D.missing_data_ray_length = 5.
 TRAJECTORY_BUILDER_2D.num_accumulated_range_data = 1
 TRAJECTORY_BUILDER_2D.voxel_filter_size = 0.025
-TRAJECTORY_BUILDER_2D.use_online_correlative_scan_matching = true --false
+TRAJECTORY_BUILDER_2D.use_online_correlative_scan_matching = false
 TRAJECTORY_BUILDER_2D.submaps.num_range_data = 90
 
 POSE_GRAPH.optimize_every_n_nodes = 90

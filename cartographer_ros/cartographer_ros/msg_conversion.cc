@@ -359,7 +359,7 @@ Eigen::Vector3d LatLongAltToEcef(const double latitude, const double longitude,
   return Eigen::Vector3d(x, y, z);
 }
 
-// 20250225 for mower by cz
+// 20250225 for mower
 geographic_msgs::GeoPoint UTM2LLA(const geodesy::UTMPoint& utm) {
   return geodesy::toMsg(utm);
 }

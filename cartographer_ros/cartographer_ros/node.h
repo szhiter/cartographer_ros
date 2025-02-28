@@ -192,7 +192,7 @@ class Node {
   // These ros::ServiceServers need to live for the lifetime of the node.
   std::vector<::ros::ServiceServer> service_servers_;
   ::ros::Publisher scan_matched_point_cloud_publisher_;
-  // 20250225 for mower by cz
+  // 20250225 for mower
   ::ros::Publisher mower_publisher_;
 
   struct TrajectorySensorSamplers {

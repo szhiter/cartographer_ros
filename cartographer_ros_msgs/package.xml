@@ -37,7 +37,7 @@
   <depend>geometry_msgs</depend>
   <depend>std_msgs</depend>
 
-  <!-- 20250225 for mower by cz -->
+  <!-- 20250225 for mower -->
   <depend>mower_msgs</depend>
 
   <build_depend>message_generation</build_depend>

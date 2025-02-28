@@ -19,7 +19,7 @@ project(cartographer_ros_msgs)
 set(PACKAGE_DEPENDENCIES
   geometry_msgs
   std_msgs
-  # 20250225 for mower by cz
+  # 20250225 for mower
   mower_msgs
 )
 
