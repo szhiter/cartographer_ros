@@ -58,7 +58,7 @@ NodeOptions CreateNodeOptions(
 std::tuple<NodeOptions, TrajectoryOptions> LoadOptions(
     const std::string& configuration_directory,
     const std::string& configuration_basename) {
-  // 20250221 for rv1126
+  // 20250221 add configuration directory for rv1126
 //  auto file_resolver =
 //      absl::make_unique<cartographer::common::ConfigurationFileResolver>(
 //          std::vector<std::string>{configuration_directory});

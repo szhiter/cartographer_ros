@@ -32,6 +32,8 @@ struct TrajectoryOptions {
   std::string published_frame;
   std::string odom_frame;
   bool provide_odom_frame;
+  // 20250411 modify tf adapt to rv1126
+  bool provide_odom_tf;
   bool use_odometry;
   bool use_nav_sat;
   bool use_landmarks;

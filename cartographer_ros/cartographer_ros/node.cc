@@ -40,9 +40,6 @@
 #include "cartographer_ros/time_conversion.h"
 #include "cartographer_ros_msgs/StatusCode.h"
 #include "cartographer_ros_msgs/StatusResponse.h"
-// 20250225 for mower
-#include "mower_msgs/MowerLocalizationInfo.h"
-#include "geometry_msgs/PoseStamped.h"
 #include "glog/logging.h"
 #include "nav_msgs/Odometry.h"
 #include "ros/serialization.h"
@@ -131,6 +128,9 @@ Node::Node(
       kFinishTrajectoryServiceName, &Node::HandleFinishTrajectory, this));
   service_servers_.push_back(node_handle_.advertiseService(
       kWriteStateServiceName, &Node::HandleWriteState, this));
+  // 20250411 load state server
+  service_servers_.push_back(node_handle_.advertiseService(
+      "/load_state", &Node::HandleLoadState, this));
   service_servers_.push_back(node_handle_.advertiseService(
       kGetTrajectoryStatesServiceName, &Node::HandleGetTrajectoryStates, this));
   service_servers_.push_back(node_handle_.advertiseService(
@@ -139,10 +139,6 @@ Node::Node(
   scan_matched_point_cloud_publisher_ =
       node_handle_.advertise<sensor_msgs::PointCloud2>(
           kScanMatchedPointCloudTopic, kLatestOnlyPublisherQueueSize);
-  // 20250225 for mower
-  mower_publisher_ =
-      node_handle_.advertise<mower_msgs::MowerLocalizationInfo>(
-          "/mower_localization_info", kLatestOnlyPublisherQueueSize);
 
   wall_timers_.push_back(node_handle_.createWallTimer(
       ::ros::WallDuration(node_options_.submap_publish_period_sec),
@@ -161,11 +157,22 @@ Node::Node(
   wall_timers_.push_back(node_handle_.createWallTimer(
       ::ros::WallDuration(kConstraintPublishPeriodSec),
       &Node::PublishConstraintList, this));
+
+  // 20250328 modify pose extrapolator
+  align_odom_publisher_ =
+      node_handle_.advertise<::nav_msgs::Odometry>(
+          "/align_odom", kLatestOnlyPublisherQueueSize);
 }
 
 Node::~Node() { FinishAllTrajectories(); }
 
 ::ros::NodeHandle* Node::node_handle() { return &node_handle_; }
+
+// 20250328 odometry reset on station
+std::map<int, ::cartographer::mapping::PoseGraphInterface::TrajectoryState>
+Node::GetTrajectoryStates() {
+  return map_builder_bridge_.GetTrajectoryStates();
+}
 
 bool Node::HandleSubmapQuery(
     ::cartographer_ros_msgs::SubmapQuery::Request& request,
@@ -252,7 +259,7 @@ void Node::PublishLocalTrajectoryData(const ::ros::TimerEvent& timer_event) {
             carto::sensor::TransformTimedPointCloud(
                 point_cloud, trajectory_data.local_to_map.cast<float>())));
       }
-      // 20250226 for debug pose extrapolator
+      // 20250226 debug pose extrapolator
 //      LOG(INFO) << "Add pose: " << trajectory_data.local_slam_data->time;
       extrapolator.AddPose(trajectory_data.local_slam_data->time,
                            trajectory_data.local_slam_data->local_pose);
@@ -265,7 +272,7 @@ void Node::PublishLocalTrajectoryData(const ::ros::TimerEvent& timer_event) {
     // information is better.
     const ::cartographer::common::Time now = std::max(
         FromRos(ros::Time::now()), extrapolator.GetLastExtrapolatedTime());
-    // 20250226 for debug pose extrapolator
+    // 20250226 debug pose extrapolator
 //    LOG(INFO) << "ros: " << FromRos(ros::Time::now());
 //    LOG(INFO) << "extrapolator: " << extrapolator.GetLastExtrapolatedTime();
     stamped_transform.header.stamp =
@@ -281,7 +288,7 @@ void Node::PublishLocalTrajectoryData(const ::ros::TimerEvent& timer_event) {
       continue;
     last_published_tf_stamps_[entry.first] = stamped_transform.header.stamp;
 
-    // 20250226 for debug pose extrapolator
+    // 20250226 debug pose extrapolator
 //    LOG(INFO) << "Get pose: " << now;
     const Rigid3d tracking_to_local_3d =
         node_options_.use_pose_extrapolator
@@ -301,24 +308,75 @@ void Node::PublishLocalTrajectoryData(const ::ros::TimerEvent& timer_event) {
     if (trajectory_data.published_to_tracking != nullptr) {
       if (node_options_.publish_to_tf) {
         if (trajectory_data.trajectory_options.provide_odom_frame) {
-          std::vector<geometry_msgs::TransformStamped> stamped_transforms;
+          // 20250411 modify tf adapt to rv1126
+//          std::vector<geometry_msgs::TransformStamped> stamped_transforms;
+//
+//          stamped_transform.header.frame_id = node_options_.map_frame;
+//          stamped_transform.child_frame_id =
+//              trajectory_data.trajectory_options.odom_frame;
+//          stamped_transform.transform =
+//              ToGeometryMsgTransform(trajectory_data.local_to_map);
+//          stamped_transforms.push_back(stamped_transform);
+//
+//          stamped_transform.header.frame_id =
+//              trajectory_data.trajectory_options.odom_frame;
+//          stamped_transform.child_frame_id =
+//              trajectory_data.trajectory_options.published_frame;
+//          stamped_transform.transform = ToGeometryMsgTransform(
+//              tracking_to_local * (*trajectory_data.published_to_tracking));
+//          stamped_transforms.push_back(stamped_transform);
+//
+//          tf_broadcaster_.sendTransform(stamped_transforms);
 
-          stamped_transform.header.frame_id = node_options_.map_frame;
-          stamped_transform.child_frame_id =
-              trajectory_data.trajectory_options.odom_frame;
-          stamped_transform.transform =
-              ToGeometryMsgTransform(trajectory_data.local_to_map);
-          stamped_transforms.push_back(stamped_transform);
+          // 20250411 modify tf adapt to rv1126
+          if (trajectory_data.trajectory_options.provide_odom_tf) {
+            const auto tf_buffer = map_builder_bridge_.sensor_bridge(entry.first)
+                ->tf_bridge().tf_buffer();
+            CHECK(tf_buffer->canTransform(
+                trajectory_data.trajectory_options.odom_frame,
+                trajectory_data.trajectory_options.published_frame,
+                ::ros::Time(0)));
+            LOG_FIRST_N(INFO, 1) << "Publish transform from '"
+                                 << trajectory_data.trajectory_options.odom_frame
+                                 << "' to '" << node_options_.map_frame << "'.";
 
-          stamped_transform.header.frame_id =
-              trajectory_data.trajectory_options.odom_frame;
-          stamped_transform.child_frame_id =
-              trajectory_data.trajectory_options.published_frame;
-          stamped_transform.transform = ToGeometryMsgTransform(
-              tracking_to_local * (*trajectory_data.published_to_tracking));
-          stamped_transforms.push_back(stamped_transform);
+            const Rigid3d published_to_odom = ToRigid3d(
+                tf_buffer->lookupTransform(
+                    trajectory_data.trajectory_options.odom_frame,
+                    trajectory_data.trajectory_options.published_frame,
+                    ::ros::Time(0)));
+            const Rigid3d published_to_map =
+                tracking_to_map * (*trajectory_data.published_to_tracking);
 
-          tf_broadcaster_.sendTransform(stamped_transforms);
+            stamped_transform.header.frame_id = node_options_.map_frame;
+            stamped_transform.child_frame_id =
+                trajectory_data.trajectory_options.odom_frame;
+            stamped_transform.transform = ToGeometryMsgTransform(
+                published_to_map * published_to_odom.inverse());
+            tf_broadcaster_.sendTransform(stamped_transform);
+          } else {
+            LOG_FIRST_N(INFO, 1) << "Publish transform from '"
+                                 << trajectory_data.trajectory_options.published_frame
+                                 << "' to '" << node_options_.map_frame << "'.";
+            std::vector<geometry_msgs::TransformStamped> stamped_transforms;
+
+            stamped_transform.header.frame_id = node_options_.map_frame;
+            stamped_transform.child_frame_id =
+                trajectory_data.trajectory_options.odom_frame;
+            stamped_transform.transform =
+                ToGeometryMsgTransform(trajectory_data.local_to_map);
+            stamped_transforms.push_back(stamped_transform);
+
+            stamped_transform.header.frame_id =
+                trajectory_data.trajectory_options.odom_frame;
+            stamped_transform.child_frame_id =
+                trajectory_data.trajectory_options.published_frame;
+            stamped_transform.transform = ToGeometryMsgTransform(
+                tracking_to_local * (*trajectory_data.published_to_tracking));
+            stamped_transforms.push_back(stamped_transform);
+
+            tf_broadcaster_.sendTransform(stamped_transforms);
+          }
         } else {
           stamped_transform.header.frame_id = node_options_.map_frame;
           stamped_transform.child_frame_id =
@@ -335,69 +393,6 @@ void Node::PublishLocalTrajectoryData(const ::ros::TimerEvent& timer_event) {
         pose_msg.pose = ToGeometryMsgPose(tracking_to_map);
         tracked_pose_publisher_.publish(pose_msg);
       }
-    }
-
-    // 20250225 for mower
-    if (mower_publisher_.getNumSubscribers()) {
-      mower_msgs::MowerLocalizationInfo mower_localization_info;
-
-      mower_localization_info.header.seq = 0;
-      mower_localization_info.header.stamp = stamped_transform.header.stamp;
-      mower_localization_info.header.frame_id = node_options_.map_frame;
-
-      const Rigid3d published_to_global =
-          tracking_to_map * (*trajectory_data.published_to_tracking);
-      mower_localization_info.fused_pose = ToGeometryMsgPose(published_to_global);
-
-      static geographic_msgs::GeoPoint origin_lla;
-      {
-        origin_lla.latitude = 22.657627;
-        origin_lla.longitude = 113.906587;
-        origin_lla.altitude = 0.;
-      }
-      const geographic_msgs::GeoPoint lla = UTM2LLA(
-          XYZ2UTM(origin_lla, published_to_global.translation()));
-      LOG_EVERY_N(INFO, 1 / node_options_.pose_publish_period_sec)
-        << "lla: { t: [" << lla.latitude << ", " << lla.longitude
-        << ", " << lla.altitude << "] }";
-      mower_localization_info.latitude = lla.latitude;
-      mower_localization_info.longitude = lla.longitude;
-      mower_localization_info.heading = lla.altitude;
-
-      mower_localization_info.ref_latitude = origin_lla.latitude;
-      mower_localization_info.ref_longitude = origin_lla.longitude;
-
-      mower_localization_info.sunrise_minutes = 6 * 60 + 30;
-      mower_localization_info.sunset_minutes = 18 * 60 + 30;
-      mower_localization_info.sunrise_time = "6: 30";
-      mower_localization_info.sunset_time = "18: 30";
-
-      mower_localization_info.heading_initialized = false;
-      mower_localization_info.datum_initialized = true;
-
-      mower_localization_info.heading_correction_count = 0;
-
-      mower_localization_info.state = mower_localization_info.STATE_RTK_VISION;  // 1
-
-      mower_localization_info.remaining_vision_buffer = 50.;
-
-      mower_localization_info.rtk_status = mower_localization_info.RTK_STATUS_FIX;  // 10
-
-      mower_localization_info.num_satellites = 0;
-      mower_localization_info.num_satellites_used = 0;
-
-      mower_localization_info.ref_num_satellites = 0;
-
-      mower_localization_info.ref_station_status = mower_localization_info.REF_STATUS_OK; // 20
-
-      mower_localization_info.lora_rssi_dbm = 0;
-
-      mower_localization_info.cal_angle = 0.;
-      mower_localization_info.cal_status = 1;
-
-      mower_localization_info.hop_state = 0;
-
-      mower_publisher_.publish(mower_localization_info);
     }
   }
 }
@@ -771,6 +766,9 @@ bool Node::HandleFinishTrajectory(
 bool Node::HandleWriteState(
     ::cartographer_ros_msgs::WriteState::Request& request,
     ::cartographer_ros_msgs::WriteState::Response& response) {
+  // 20250411 write state server
+  RunFinalOptimization();
+
   absl::MutexLock lock(&mutex_);
   if (map_builder_bridge_.SerializeState(request.filename,
                                          request.include_unfinished_submaps)) {
@@ -781,6 +779,18 @@ bool Node::HandleWriteState(
     response.status.code = cartographer_ros_msgs::StatusCode::INVALID_ARGUMENT;
     response.status.message =
         absl::StrCat("Failed to write '", request.filename, "'.");
+  }
+  return true;
+}
+
+// 20250411 load state server
+bool Node::HandleLoadState(
+    ::cartographer_ros_msgs::LoadState::Request& request,
+    ::cartographer_ros_msgs::LoadState::Response& response) {
+  if (!request.filename.empty()) {
+    LoadState(request.filename, request.load_frozen_state);
+    response.status.message = "Success.";
+    response.status.code = cartographer_ros_msgs::StatusCode::OK;
   }
   return true;
 }
@@ -841,17 +851,43 @@ void Node::RunFinalOptimization() {
 void Node::HandleOdometryMessage(const int trajectory_id,
                                  const std::string& sensor_id,
                                  const nav_msgs::Odometry::ConstPtr& msg) {
+  // 20250328 odometry reset on station
+  if (std::abs(msg->pose.pose.position.x) <= 1e-6 &&
+      std::abs(msg->pose.pose.position.y) <= 1e-6 &&
+      std::abs(msg->pose.pose.position.z) <= 1e-6) {
+    LOG_EVERY_N(INFO, 60) << "Get message in station.";
+  }
+  // 20250328 modify pose extrapolator
+  nav_msgs::Odometry align_odometry;
+  {
+    static const cartographer::transform::Rigid3d odom_to_map =
+        ToRigid3d(msg->pose.pose).inverse();
+    const auto msg_to_map = odom_to_map * ToRigid3d(msg->pose.pose);
+
+    align_odometry = *msg;
+    align_odometry.pose.pose = ToGeometryMsgPose(msg_to_map);
+    if (align_odom_publisher_.getNumSubscribers()) {
+      align_odom_publisher_.publish(align_odometry);
+    }
+  }
+  const nav_msgs::Odometry::ConstPtr align_msg =
+      boost::make_shared<nav_msgs::Odometry>(align_odometry);
+
   absl::MutexLock lock(&mutex_);
   if (!sensor_samplers_.at(trajectory_id).odometry_sampler.Pulse()) {
     return;
   }
   auto sensor_bridge_ptr = map_builder_bridge_.sensor_bridge(trajectory_id);
-  auto odometry_data_ptr = sensor_bridge_ptr->ToOdometryData(msg);
+  // 20250328 modify pose extrapolator
+//  auto odometry_data_ptr = sensor_bridge_ptr->ToOdometryData(msg);
+  auto odometry_data_ptr = sensor_bridge_ptr->ToOdometryData(align_msg);
   if (odometry_data_ptr != nullptr &&
       !sensor_bridge_ptr->IgnoreMessage(sensor_id, odometry_data_ptr->time)) {
     extrapolators_.at(trajectory_id).AddOdometryData(*odometry_data_ptr);
   }
-  sensor_bridge_ptr->HandleOdometryMessage(sensor_id, msg);
+  // 20250328 modify pose extrapolator
+//  sensor_bridge_ptr->HandleOdometryMessage(sensor_id, msg);
+  sensor_bridge_ptr->HandleOdometryMessage(sensor_id, align_msg);
 }
 
 void Node::HandleNavSatFixMessage(const int trajectory_id,

@@ -47,6 +47,26 @@ DEFINE_string(
 namespace cartographer_ros {
 namespace {
 
+// 20250328 odometry reset on station
+void InStationCallback(const nav_msgs::Odometry::ConstPtr& msg,
+                       Node* node,
+                       const TrajectoryOptions& trajectory_options) {
+  static bool last_in_station = false;
+  if (std::abs(msg->pose.pose.position.x) <= 1e-6 &&
+      std::abs(msg->pose.pose.position.y) <= 1e-6 &&
+      std::abs(msg->pose.pose.position.z) <= 1e-6) {
+    if (last_in_station) {
+      return;
+    }
+    LOG(WARNING) << "Get message in station.";
+    node->FinishAllTrajectories();
+    node->StartTrajectoryWithDefaultTopics(trajectory_options);
+    last_in_station = true;
+  } else {
+    last_in_station = false;
+  }
+}
+
 void Run() {
   constexpr double kTfBufferCacheTimeInSeconds = 10.;
   tf2_ros::Buffer tf_buffer{::ros::Duration(kTfBufferCacheTimeInSeconds)};
@@ -67,6 +87,13 @@ void Run() {
   if (FLAGS_start_trajectory_with_default_topics) {
     node.StartTrajectoryWithDefaultTopics(trajectory_options);
   }
+
+  // 20250328 odometry reset on station
+  ros::NodeHandle node_handle;
+  ros::Subscriber in_station_subscriber =
+      node_handle.subscribe<nav_msgs::Odometry>(
+          kOdometryTopic, 1,
+          boost::bind(&InStationCallback, _1, &node, trajectory_options));
 
   ::ros::spin();
 

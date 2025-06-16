@@ -94,6 +94,83 @@ void PushAndResetLineMarker(visualization_msgs::Marker* marker,
   marker->points.clear();
 }
 
+// 20250325 write map to txt
+bool WriteOccupancyGridMsg(const nav_msgs::OccupancyGrid& msg_ptr,
+                           const std::string& txt_filename) {
+  std::ostringstream message;
+  message.setf(std::ios_base::fixed, std::ios_base::floatfield);
+  message << "header:" << std::endl
+          << "  stamp: " << msg_ptr.header.stamp << std::endl
+          << "  frame_id: " << msg_ptr.header.frame_id << std::endl;
+  message << "info:" << std::endl
+          << "  map_load_time: " << msg_ptr.info.map_load_time << std::endl
+          << "  resolution: " << msg_ptr.info.resolution << std::endl
+          << "  width: " << msg_ptr.info.width << std::endl
+          << "  height: " << msg_ptr.info.height << std::endl
+          << "  origin:" << std::endl
+          << "    position:" << std::endl
+          << "      x: " << msg_ptr.info.origin.position.x << std::endl
+          << "      y: " << msg_ptr.info.origin.position.y << std::endl
+          << "      z: " << msg_ptr.info.origin.position.z << std::endl
+          << "    orientation:" << std::endl
+          << "      w: " << msg_ptr.info.origin.orientation.w << std::endl
+          << "      x: " << msg_ptr.info.origin.orientation.x << std::endl
+          << "      y: " << msg_ptr.info.origin.orientation.y << std::endl
+          << "      z: " << msg_ptr.info.origin.orientation.z << std::endl;
+  message << "data: [";
+  for (size_t i = 0; i < msg_ptr.data.size(); ++i) {
+    if (i > 0) {
+      message << ", ";
+    }
+    message << static_cast<int>(msg_ptr.data[i]);
+  }
+  message << "]" << std::endl;
+
+  std::ofstream basic_stream(
+      txt_filename, std::ios::out | std::ios::binary | std::ios::trunc);
+  if (!basic_stream.is_open()) {
+    LOG(ERROR) << "Failed to write grid map.";
+    return false;
+  }
+  basic_stream << message.str();
+  basic_stream.close();
+  std::ostringstream().swap(message);
+  return true;
+}
+
+// 20250325 write map to txt
+bool GenerateOccupancyGridMsg(
+    const std::string& pbstream_filename, const double resolution) {
+  ::cartographer::io::ProtoStreamReader reader(pbstream_filename);
+  ::cartographer::io::ProtoStreamDeserializer deserializer(&reader);
+
+  LOG(INFO) << "Loading submap slices from serialized data.";
+  std::map<::cartographer::mapping::SubmapId, ::cartographer::io::SubmapSlice>
+      submap_slices;
+  ::cartographer::mapping::ValueConversionTables conversion_tables;
+  ::cartographer::io::DeserializeAndFillSubmapSlices(
+      &deserializer, &submap_slices, &conversion_tables);
+  CHECK(reader.eof());
+
+  LOG(INFO) << "Generating combined map image from submap slices.";
+  const auto painted_slices =
+      ::cartographer::io::PaintSubmapSlices(submap_slices, resolution);
+
+  const auto msg_ptr =
+      CreateOccupancyGridMsg(painted_slices, resolution, "/map",
+                             ros::Time::now());
+
+  const std::string suffix = ".pbstream";
+  if (pbstream_filename.substr(
+      std::max<int>(pbstream_filename.size() - suffix.size(), 0)) != suffix) {
+    return false;
+  }
+  const std::string txt_filename =
+      pbstream_filename.substr(
+          0, pbstream_filename.size() - suffix.size()) + ".txt";
+  return WriteOccupancyGridMsg(*msg_ptr, txt_filename);
+}
+
 }  // namespace
 
 MapBuilderBridge::MapBuilderBridge(
@@ -164,8 +241,12 @@ void MapBuilderBridge::RunFinalOptimization() {
 
 bool MapBuilderBridge::SerializeState(const std::string& filename,
                                       const bool include_unfinished_submaps) {
+  // 20250325 write map to txt
+//  return map_builder_->SerializeStateToFile(include_unfinished_submaps,
+//                                            filename);
   return map_builder_->SerializeStateToFile(include_unfinished_submaps,
-                                            filename);
+                                            filename) &&
+      GenerateOccupancyGridMsg(filename, 0.05);
 }
 
 void MapBuilderBridge::HandleSubmapQuery(

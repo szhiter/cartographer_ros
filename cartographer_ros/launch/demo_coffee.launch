@@ -19,6 +19,8 @@
 
   <arg name="build_pc" value="$(eval arg('robot_type') > '_pc')" />
 
+  <arg name="bag_filename" default="" />
+
   <group if="$(arg build_pc)">
       <param name="/use_sim_time" value="true" />
 
@@ -53,7 +55,10 @@
   <group if="$(arg build_pc)">
       <node name="rviz" pkg="rviz" type="rviz" required="true"
           args="-d $(find cartographer_ros)/configuration_files/$(arg robot_type).rviz" />
+  </group>
+
+  <group if="$(eval arg('bag_filename') != '')">
       <node name="playbag" pkg="rosbag" type="play"
-          args="--clock $(arg bag_filename) --pause" />
+          args="--clock $(arg bag_filename) --pause -r 5" />
   </group>
 </launch>

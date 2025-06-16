@@ -19,8 +19,6 @@ project(cartographer_ros_msgs)
 set(PACKAGE_DEPENDENCIES
   geometry_msgs
   std_msgs
-  # 20250225 for mower
-  mower_msgs
 )
 
 find_package(catkin REQUIRED COMPONENTS message_generation ${PACKAGE_DEPENDENCIES})
@@ -53,6 +51,8 @@ add_service_files(
     SubmapQuery.srv
     TrajectoryQuery.srv
     WriteState.srv
+    # 20250411 load state server
+    LoadState.srv
 )
 
 generate_messages(

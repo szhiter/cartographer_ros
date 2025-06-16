@@ -78,7 +78,7 @@ void SensorBridge::HandleOdometryMessage(
     const std::string& sensor_id, const nav_msgs::Odometry::ConstPtr& msg) {
   std::unique_ptr<carto::sensor::OdometryData> odometry_data =
       ToOdometryData(msg);
-  // 20250221 for sensor check
+  // 20250221 sensor check
   LOG_FIRST_N(INFO, 1) << "Add odom: " << odometry_data->time;
   if (odometry_data != nullptr) {
     if (IgnoreMessage(sensor_id, odometry_data->time)) {
@@ -156,9 +156,7 @@ std::unique_ptr<carto::sensor::ImuData> SensorBridge::ToImuData(
   if (sensor_to_tracking == nullptr) {
     return nullptr;
   }
-  // 20250228 for ignore colocated check with z-axis tf
-//  CHECK(sensor_to_tracking->translation().norm() < 1e-5)
-  CHECK(Project2D(*sensor_to_tracking).translation().norm() < 1e-5)
+  CHECK(sensor_to_tracking->translation().norm() < 1e-5)
       << "The IMU frame must be colocated with the tracking frame. "
          "Transforming linear acceleration into the tracking frame will "
          "otherwise be imprecise.";
@@ -170,7 +168,7 @@ std::unique_ptr<carto::sensor::ImuData> SensorBridge::ToImuData(
 void SensorBridge::HandleImuMessage(const std::string& sensor_id,
                                     const sensor_msgs::Imu::ConstPtr& msg) {
   std::unique_ptr<carto::sensor::ImuData> imu_data = ToImuData(msg);
-  // 20250221 for sensor check
+  // 20250221 sensor check
   LOG_FIRST_N(INFO, 1) << "Add imu: " << imu_data->time;
   if (imu_data != nullptr) {
     if (IgnoreMessage(sensor_id, imu_data->time)) {
@@ -193,7 +191,7 @@ void SensorBridge::HandleLaserScanMessage(
   carto::sensor::PointCloudWithIntensities point_cloud;
   carto::common::Time time;
   std::tie(point_cloud, time) = ToPointCloudWithIntensities(*msg);
-  // 20250221 for sensor check
+  // 20250221 sensor check
   LOG_FIRST_N(INFO, 1) << "Add scan: " << FromRos(msg->header.stamp) << " -> " << time;
   HandleLaserScan(sensor_id, time, msg->header.frame_id, point_cloud);
 }

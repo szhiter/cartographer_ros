@@ -32,9 +32,6 @@ set(PACKAGE_DEPENDENCIES
   tf2_ros
   urdf
   visualization_msgs
-  # 20250225 for mower
-  geodesy
-  geographic_msgs
 )
 
 if(WIN32)

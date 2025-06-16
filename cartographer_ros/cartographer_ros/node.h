@@ -42,6 +42,8 @@
 #include "cartographer_ros_msgs/SubmapList.h"
 #include "cartographer_ros_msgs/SubmapQuery.h"
 #include "cartographer_ros_msgs/WriteState.h"
+// 20250411 load state server
+#include "cartographer_ros_msgs/LoadState.h"
 #include "nav_msgs/Odometry.h"
 #include "ros/ros.h"
 #include "sensor_msgs/Imu.h"
@@ -118,6 +120,11 @@ class Node {
 
   ::ros::NodeHandle* node_handle();
 
+  // 20250328 odometry reset on station
+  std::map<int /* trajectory_id */,
+           ::cartographer::mapping::PoseGraphInterface::TrajectoryState>
+  GetTrajectoryStates();
+
  private:
   struct Subscriber {
     ::ros::Subscriber subscriber;
@@ -143,6 +150,10 @@ class Node {
       cartographer_ros_msgs::FinishTrajectory::Response& response);
   bool HandleWriteState(cartographer_ros_msgs::WriteState::Request& request,
                         cartographer_ros_msgs::WriteState::Response& response);
+  // 20250411 load state server
+  bool HandleLoadState(
+      ::cartographer_ros_msgs::LoadState::Request& request,
+      ::cartographer_ros_msgs::LoadState::Response& response);
   bool HandleGetTrajectoryStates(
       ::cartographer_ros_msgs::GetTrajectoryStates::Request& request,
       ::cartographer_ros_msgs::GetTrajectoryStates::Response& response);
@@ -189,11 +200,11 @@ class Node {
   ::ros::Publisher landmark_poses_list_publisher_;
   ::ros::Publisher constraint_list_publisher_;
   ::ros::Publisher tracked_pose_publisher_;
+  // 20250328 modify pose extrapolator
+  ::ros::Publisher align_odom_publisher_;
   // These ros::ServiceServers need to live for the lifetime of the node.
   std::vector<::ros::ServiceServer> service_servers_;
   ::ros::Publisher scan_matched_point_cloud_publisher_;
-  // 20250225 for mower
-  ::ros::Publisher mower_publisher_;
 
   struct TrajectorySensorSamplers {
     TrajectorySensorSamplers(const double rangefinder_sampling_ratio,
